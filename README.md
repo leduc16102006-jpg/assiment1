@@ -100,21 +100,21 @@ Tài liệu Swagger UI tương tác trực tiếp tại: **`http://localhost:300
 | | Backend (`GET`) | `/products/:id` | Public | Lấy thông tin chi tiết của một sản phẩm theo ID. | Bạn C |
 | **Task 3: Giao diện Menu** | Frontend (Next.js) | `/` (Trang chủ) | Public | Hiển thị menu đồ uống dạng lưới (Grid), tìm kiếm từ khóa, bộ lọc tab theo danh mục. | Bạn D |
 | **Task 4: Chi tiết & Tùy chọn** | Frontend (Next.js) | Modal Chi tiết | Public | Modal tùy chỉnh món: chọn Size (S/M/L), chọn Topping, tính tiền thời gian thực. | Bạn D |
-| **Task 5: Giỏ hàng (Cart)** | Frontend (Next.js) | `/cart`, `CartContext` | Client State | Quản lý giỏ hàng toàn cục qua Context API, lưu `localStorage`, Badge nhảy số, tính tổng tiền. | Bạn B (SM) & Bạn A |
-| **Task 6: Đơn hàng** | Backend (`POST`) | `/orders` | Bearer JWT | Tạo đơn hàng mới (`PENDING`), validate DTO qua `class-validator`, trừ kho trong Transaction. | Bạn F & Bạn C |
+| **Task 5: Giỏ hàng (Cart)** | Frontend (Next.js) | `/cart`, `CartContext` | Client State | Quản lý giỏ hàng toàn cục qua Context API, lưu `localStorage`, Badge nhảy số, tính tổng tiền. | Bạn B (SM) |
+| **Task 6: Đơn hàng** | Backend (`POST`) | `/orders` | Bearer JWT | Tạo đơn hàng mới (`PENDING`), validate DTO qua `class-validator`, trừ kho trong Transaction. | Bạn C |
 | **Task 7: Xác thực (Auth)** | Backend (`POST`) | `/auth/register` | Public | Đăng ký tài khoản mới (Mật khẩu được băm Bcrypt). | Bạn E |
 | | Backend (`POST`) | `/auth/login` | Public | Đăng nhập hệ thống, cấp `accessToken` (JWT). | Bạn E |
 | | Backend (`GET`) | `/auth/me` | Bearer JWT | Trích xuất thông tin người dùng từ token (`JwtAuthGuard`). | Bạn E |
 | | Frontend (Next.js) | `/login` | Public | Form đăng nhập hoàn chỉnh, ẩn/hiện mật khẩu, lưu token và điều hướng. | Bạn B |
 | | Frontend (Next.js) | `/auth`  | Public | Đăng ký tạo tài khoản   | Bạn B |
-| **Task 8: Thanh toán & VNPay** | Backend (`POST`) | `/payments` | Bearer JWT + Idempotency | Thanh toán giả lập qua Ví (`WALLET`) hoặc Thẻ (`CARD`). | Bạn F & Bạn E |
-| | Backend (`POST`) | `/payments/vnpay/create` | Bearer JWT + Idempotency | Khởi tạo URL giao dịch VNPay Sandbox có gắn chữ ký bảo mật SHA-512. | Bạn E |
-| | Backend (`GET`) | `/payments/vnpay/ipn` | Public (Webhook) | Nhận kết quả ngầm (IPN) từ server VNPay, cập nhật đơn sang `PAID` an toàn. | Bạn E |
-| | Backend (`GET`) | `/payments/vnpay/return` | Public | Xác thực chữ ký dữ liệu trả về và điều hướng trình duyệt về màn hình xác nhận FE. | Bạn E |
-| | Frontend (Next.js) | `/cart` | Bearer JWT | Chọn `WALLET`/`CARD` hoặc `VNPAY` (Quét mã QR / Thẻ ATM), chuyển hướng thanh toán. | Bạn A & Bạn B |
+| **Task 8: Thanh toán & VNPay** | Backend (`POST`) | `/payments` | Bearer JWT + Idempotency | Thanh toán giả lập qua Ví (`WALLET`) hoặc Thẻ (`CARD`). | Bạn E |
+| | Backend (`POST`) | `/payments/vnpay/create` | Bearer JWT + Idempotency | Khởi tạo URL giao dịch VNPay Sandbox có gắn chữ ký bảo mật SHA-512. | Bạn C |
+| | Backend (`GET`) | `/payments/vnpay/ipn` | Public (Webhook) | Nhận kết quả ngầm (IPN) từ server VNPay, cập nhật đơn sang `PAID` an toàn. | Bạn C |
+| | Backend (`GET`) | `/payments/vnpay/return` | Public | Xác thực chữ ký dữ liệu trả về và điều hướng trình duyệt về màn hình xác nhận FE. | Bạn C |
+| | Frontend (Next.js) | `/cart` | Bearer JWT | Chọn `WALLET`/`CARD` hoặc `VNPAY` (Quét mã QR / Thẻ ATM), chuyển hướng thanh toán. | Bạn B |
 | **Task 9: Lịch sử & Xác nhận đơn** | Frontend (Next.js) | `/order-confirmation` | Bearer JWT | Màn hình biên nhận tức thì: mã đơn, nhãn xanh `PAID`, gọi API lấy tổng tiền thật. | Bạn B (SM) |
-| | Backend (`GET`) | `/orders/me` | Bearer JWT | Lấy danh sách lịch sử đơn hàng của tài khoản đang đăng nhập, sắp xếp mới nhất. | Bạn E & Bạn F |
-| | Frontend (Next.js) | `/orders` | Bearer JWT | Giao diện lịch sử đơn hàng kết nối API thật, lọc theo trạng thái, nút Đăng xuất. | Bạn D & Bạn B |
+| | Backend (`GET`) | `/orders/me` | Bearer JWT | Lấy danh sách lịch sử đơn hàng của tài khoản đang đăng nhập, sắp xếp mới nhất. | Bạn E |
+| | Frontend (Next.js) | `/orders` | Bearer JWT | Giao diện lịch sử đơn hàng kết nối API thật, lọc theo trạng thái, nút Đăng xuất. | Bạn D & B |
 | | DevOps / System | `docker-compose.yml` | --- | Đóng gói toàn bộ hệ thống (PostgreSQL, Backend NestJS, Frontend Next.js). | Bạn B (SM) |
 | **Task 10.1: Máy trạng thái** | Backend (`PATCH`) | `/orders/:id/status` | Bearer JWT | Chuyển trạng thái đơn (`PENDING -> PAID -> PREPARING -> READY -> COMPLETED`). | Bạn C |
 | **Task 10.2: Thanh toán Idempotent** | Backend (`POST`) | `/payments` | Bearer JWT + Idempotency-Key | Chống trừ tiền trùng lặp khi gửi lặp request. Kiểm tra khóa duy nhất trên DB. | Bạn C |

@@ -9,7 +9,7 @@ Chức năng thanh toán VNPay được tích hợp vào hệ thống BrewLite b
 ## 2. Cấu hình Môi trường (Local & Sandbox)
 Hệ thống sử dụng môi trường VNPay Sandbox.
 - **Merchant Admin:** `https://sandbox.vnpayment.vn/merchantv2/`
-- **Tài khoản test:** `congdanhbui22@gmail.com`
+- **Tài khoản test:** `congdanhbui22@gmail.com`  pass :` TsH9CX3yQt6r*9x`
 - Các biến môi trường bắt buộc (Không đẩy lên Git):
   ```env
   VNPAY_TMN_CODE=...

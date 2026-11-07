@@ -9,6 +9,26 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import * as qs from 'qs';
 
+function formatVnpayDate(date: Date): string {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const parts = formatter.formatToParts(date);
+
+  const getPart = (type: string) =>
+    parts.find((p) => p.type === type)?.value || '';
+
+  return `${getPart('year')}${getPart('month')}${getPart('day')}${getPart('hour')}${getPart('minute')}${getPart('second')}`;
+}
+
 @Injectable()
 export class VnpayService {
   private readonly tmnCode: string;
@@ -279,21 +299,15 @@ async handleIpn(
   amount: number,
   ipAddress: string,
   ): Promise<string> {
-  const dateFormat = (date: Date): string => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-
-    return (
-      date.getFullYear().toString() +
-      pad(date.getMonth() + 1) +
-      pad(date.getDate()) +
-      pad(date.getHours()) +
-      pad(date.getMinutes()) +
-      pad(date.getSeconds())
-    );
-  };
-
+  
   const now = new Date();
-  const expireTime = new Date(now.getTime() + 15 * 60 * 1000);
+
+  const expireTime = new Date(
+  now.getTime() + 15 * 60 * 1000,
+  );
+
+  const createDate = formatVnpayDate(now);
+  const expireDate = formatVnpayDate(expireTime);
 
   const params: Record<string, string> = {
     vnp_Version: '2.1.0',
@@ -307,8 +321,8 @@ async handleIpn(
     vnp_Amount: String(amount * 100),
     vnp_ReturnUrl: this.returnUrl,
     vnp_IpAddr: ipAddress,
-    vnp_CreateDate: dateFormat(now),
-    vnp_ExpireDate: dateFormat(expireTime),
+    vnp_CreateDate: createDate,
+    vnp_ExpireDate: expireDate,
   };
 
 const signData = this.signData(params);
