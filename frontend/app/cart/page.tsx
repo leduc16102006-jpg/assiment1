@@ -18,11 +18,6 @@ type PromotionRule = {
   maxDiscount?: number;
 };
 
-const promotionDatabase: PromotionRule[] = [
-  { code: "WELCOME5", type: "PERCENT", value: 5, minOrderAmount: 30000, maxDiscount: 4000 },
-  { code: "WELCOME10", type: "PERCENT", value: 10, minOrderAmount: 100000, maxDiscount: 20000 },
-  { code: "GIAM20K", type: "FIXED", value: 20000, minOrderAmount: 50000 },
-];
 
 export default function CartAndCheckoutPage() {
   const router = useRouter();
@@ -80,28 +75,39 @@ export default function CartAndCheckoutPage() {
     if (items.length === 0) handleRemoveCoupon();
   }, [items.length]);
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     const rawCode = couponInput.trim().toUpperCase();
     if (!rawCode) return;
 
-    const promo = promotionDatabase.find((p) => p.code === rawCode);
-    if (!promo) {
-      setErrorType("GENERAL");
-      setErrorMsg(`Mã "${rawCode}" không tồn tại hoặc đã hết hạn.`);
-      handleRemoveCoupon();
-      return;
-    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/promotions/${rawCode}`);
+      
+      // Chặn và bóc tách lỗi từ Backend trả về thay vì ném lỗi chung chung
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Lỗi truy xuất mã "${rawCode}".`);
+      }
 
-    if (totalPrice < promo.minOrderAmount) {
-      setErrorType("GENERAL");
-      setErrorMsg(`Mã ${promo.code} chỉ áp dụng cho đơn hàng từ ${formatPrice(promo.minOrderAmount)} trở lên.`);
-      handleRemoveCoupon();
-      return;
-    }
+      const promo = await res.json();
 
-    setAppliedPromo(promo);
-    setErrorType("NONE");
-    setErrorMsg("");
+      if (totalPrice < promo.minOrderAmount) {
+        setErrorType("GENERAL");
+        setErrorMsg(`Mã ${promo.code} chỉ áp dụng cho đơn hàng từ ${formatPrice(promo.minOrderAmount)} trở lên.`);
+        handleRemoveCoupon();
+        return;
+      }
+
+      setAppliedPromo(promo);
+      setErrorType("NONE");
+      setErrorMsg("");
+    } catch (err: any) {
+      setErrorType("GENERAL");
+      setErrorMsg(err.message); // In chính xác câu lỗi từ Backend ra UI
+      handleRemoveCoupon();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRemoveCoupon = () => {

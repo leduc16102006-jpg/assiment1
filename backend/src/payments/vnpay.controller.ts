@@ -90,7 +90,7 @@ export class VnpayController {
         throw new BadRequestException('Order not available');
       }
 
-      if (existing.status !== 'PROCESSING') {
+      if (existing.status !== 'PENDING') {
         return {
           orderId: existing.orderId,
           paymentId: existing.id,
@@ -126,11 +126,9 @@ export class VnpayController {
       );
     }
 
-    if (
-      !['PENDING', 'PAYMENT_FAILED'].includes(order.status)
-    ) {
+    if (order.status !== 'PENDING') {
       throw new BadRequestException(
-        'Order cannot be paid in its current status',
+        'Đơn hàng đã bị hủy hoặc thất bại, vui lòng tạo đơn mới từ giỏ hàng.',
       );
     }
 
@@ -142,7 +140,7 @@ export class VnpayController {
           orderId: order.id,
           amount: order.total,
           method: 'VNPAY',
-          status: 'PROCESSING',
+          status: 'PENDING',
           idempotencyKey: key,
         },
       });
@@ -215,15 +213,16 @@ async testIpn(@Query('paymentId') paymentId: string) {
   
   
 @Get('return')
-  @Redirect() // THÊM DÒNG NÀY: Báo cho NestJS biết đây là API chuyển hướng trang
+  @Redirect() 
   async verifyReturn(@Query() query: any) {
-    // 1. Nhờ Service xác minh chữ ký và lấy kết quả
     const result = await this.vnpayService.verifyReturn(query);
-
-    // 2. Tự động "đá" khách hàng về trang Frontend kèm theo mã đơn hàng
-    // Nếu đơn hợp lệ, chuyển về trang /order-confirmation của FE
+    
+    const totalAmount = Number(query.vnp_Amount) / 100;
+    // BỔ SUNG: Nối thêm vnp_ResponseCode vào URL để báo cho Frontend biết
+    const responseCode = result.responseCode || '00'; 
+    
     return {
-      url: `http://localhost:3001/order-confirmation?orderId=${result.orderId}`
+      url: `http://localhost:3001/order-confirmation?orderId=${result.orderId}&total=${totalAmount}&vnp_ResponseCode=${responseCode}`
     };
   }
   

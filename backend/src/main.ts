@@ -9,10 +9,8 @@ async function bootstrap() {
 
   // Task 2: Cho phép Next.js Frontend gọi Backend
   app.enableCors({
-    origin: [
-      'http://localhost:3001',
-      'http://127.0.0.1:3001',
-    ],
+    origin: '*', // Trong môi trường DEV, cho phép mọi nguồn truy cập
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 

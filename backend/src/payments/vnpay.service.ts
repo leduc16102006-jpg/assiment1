@@ -225,7 +225,7 @@ async handleIpn(
       const updated = await tx.payment.updateMany({
         where: {
           id: payment.id,
-          status: 'PROCESSING',
+          status: 'PENDING',
         },
         data: {
           status: success ? 'PAID' : 'FAILED',
@@ -269,13 +269,45 @@ async handleIpn(
           });
         }
       } else {
-        await tx.order.updateMany({
-          where: {
-            id: payment.orderId,
-            status: 'PENDING',
-          },
-          data: { status: 'PAYMENT_FAILED' },
+        // Lấy chi tiết nguyên liệu đã giữ của đơn hàng
+        const orderToFail = await tx.order.findUnique({
+          where: { id: payment.orderId },
+          include: { ingredientUses: true, items: true },
         });
+
+        if (orderToFail && orderToFail.status === 'PENDING') {
+          // Hoàn nguyên liệu vào bảng Ingredient
+          if (orderToFail.ingredientsReserved && orderToFail.ingredientUses.length > 0) {
+            for (const use of orderToFail.ingredientUses) {
+              await tx.ingredient.update({
+                where: { id: use.ingredientId },
+                data: {
+                  stock: { increment: use.quantity },
+                  version: { increment: 1 },
+                },
+              });
+            }
+          }
+
+          // Hoàn stock Product hiển thị
+          for (const item of orderToFail.items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                stock: { increment: item.qty },
+              },
+            });
+          }
+
+          // Cập nhật trạng thái và trả cờ về false
+          await tx.order.update({
+            where: { id: payment.orderId },
+            data: {
+              status: 'PAYMENT_FAILED',
+              ingredientsReserved: false,
+            },
+          });
+        }
       }
     });
 

@@ -346,6 +346,7 @@ Quy trình trải nghiệm hoàn chỉnh toàn bộ tính năng liên thông gi�
 ### Task 10.1: Máy trạng thái Đơn hàng (Order State Machine)
 * **Người phụ trách:** Thành viên C
 * **Tiêu chí nghiệm thu (Tiêu chí chấm a):** Chặn đổi trạng thái sai; tự động hoàn kho khi đơn bị hủy hoặc lỗi thanh toán.
+* **Xử lý Đơn hàng treo (Ghost Orders):** Tích hợp Cron Job (`@nestjs/schedule`) tự động quét mỗi phút. Đơn hàng kẹt ở trạng thái `PENDING` quá 15 phút (do khách tắt trình duyệt khi đang thanh toán VNPay) sẽ tự động bị hủy (`PAYMENT_FAILED`) để giải phóng hệ thống.
 * **Cách chạy & kiểm tra:**
   * Chạy Unit Test tự động (14 bài test):
     ```bash
@@ -355,7 +356,8 @@ Quy trình trải nghiệm hoàn chỉnh toàn bộ tính năng liên thông gi�
     * Chuyển hợp lệ: `PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED` (Thành công).
     * Cố tình nhảy cóc: Đơn đang `PENDING` mà gửi chuyển sang `COMPLETED` $\rightarrow$ Nhận mã lỗi `400 Bad Request`.
     * Chuyển `PENDING` $\rightarrow$ `CANCELLED` $\rightarrow$ Kiểm tra CSDL thấy số lượng tồn kho tự động được hoàn trả.
-
+  
+  * Kiểm tra luồng Cron Job: Tạo một đơn hàng mới (trạng thái `PENDING`), sửa thời gian `createdAt` trong Database lùi về 16 phút trước. Đợi tối đa 1 phút, terminal Backend sẽ báo log `Đã hủy và hoàn kho thành công...`, kiểm tra lại kho nguyên liệu đã được cộng trả tự động.
 ---
 
 ### Task 10.2: Thanh toán Idempotent (Chống trừ tiền trùng lặp)
@@ -376,6 +378,7 @@ Quy trình trải nghiệm hoàn chỉnh toàn bộ tính năng liên thông gi�
 ### Task 10.3: Kiểm soát Tồn kho khi Đặt đồng thời (Optimistic Locking)
 * **Người phụ trách:** Thành viên E
 * **Tiêu chí nghiệm thu (Tiêu chí chấm c):** Sử dụng trường `version` và Database Transaction. Khi nhiều luồng cùng đặt 1 ly cuối cùng, chỉ 1 đơn thành công, tồn kho không bao giờ bị âm.
+* **Hoàn kho tự động:** Bắt tay chặt chẽ với Cron Job của Task 10.1, khi đơn hàng treo bị hủy, hệ thống sử dụng Database Transaction để tự động cộng trả lại chính xác số lượng nguyên liệu/sản phẩm vào kho, đảm bảo tuyệt đối không thất thoát tài sản.
 * **Cách chạy & kiểm tra:**
 * Xem tài liệu chi tiết tại [`backend/README-TASK10.3.md`](./backend/README-TASK10.3.md).
   * Chạy bài test tranh chấp đồng thời:

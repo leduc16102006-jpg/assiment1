@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
+import { describe, it, afterAll, expect } from '@jest/globals';
+
 import { PrismaService } from '../src/prisma/prisma.service';
 import { OrdersService } from '../src/orders/orders.service';
 
