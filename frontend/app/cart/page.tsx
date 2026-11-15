@@ -18,17 +18,12 @@ type PromotionRule = {
   maxDiscount?: number;
 };
 
-const promotionDatabase: PromotionRule[] = [
-  { code: "WELCOME5", type: "PERCENT", value: 5, minOrderAmount: 30000, maxDiscount: 4000 },
-  { code: "WELCOME10", type: "PERCENT", value: 10, minOrderAmount: 100000, maxDiscount: 20000 },
-  { code: "GIAM20K", type: "FIXED", value: 20000, minOrderAmount: 50000 },
-];
 
 export default function CartAndCheckoutPage() {
   const router = useRouter();
   const { items, updateQty, removeFromCart, clearCart, totalQty, totalPrice } = useCart();
   
-  const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "CARD">("WALLET");
+  const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "CARD" | "VNPAY">("WALLET");
   const [simulateStockError, setSimulateStockError] = useState(false);
   const [simulatePaymentError, setSimulatePaymentError] = useState(false);
   
@@ -80,28 +75,39 @@ export default function CartAndCheckoutPage() {
     if (items.length === 0) handleRemoveCoupon();
   }, [items.length]);
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     const rawCode = couponInput.trim().toUpperCase();
     if (!rawCode) return;
 
-    const promo = promotionDatabase.find((p) => p.code === rawCode);
-    if (!promo) {
-      setErrorType("GENERAL");
-      setErrorMsg(`Mã "${rawCode}" không tồn tại hoặc đã hết hạn.`);
-      handleRemoveCoupon();
-      return;
-    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/promotions/${rawCode}`);
+      
+      // Chặn và bóc tách lỗi từ Backend trả về thay vì ném lỗi chung chung
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Lỗi truy xuất mã "${rawCode}".`);
+      }
 
-    if (totalPrice < promo.minOrderAmount) {
-      setErrorType("GENERAL");
-      setErrorMsg(`Mã ${promo.code} chỉ áp dụng cho đơn hàng từ ${formatPrice(promo.minOrderAmount)} trở lên.`);
-      handleRemoveCoupon();
-      return;
-    }
+      const promo = await res.json();
 
-    setAppliedPromo(promo);
-    setErrorType("NONE");
-    setErrorMsg("");
+      if (totalPrice < promo.minOrderAmount) {
+        setErrorType("GENERAL");
+        setErrorMsg(`Mã ${promo.code} chỉ áp dụng cho đơn hàng từ ${formatPrice(promo.minOrderAmount)} trở lên.`);
+        handleRemoveCoupon();
+        return;
+      }
+
+      setAppliedPromo(promo);
+      setErrorType("NONE");
+      setErrorMsg("");
+    } catch (err: any) {
+      setErrorType("GENERAL");
+      setErrorMsg(err.message); // In chính xác câu lỗi từ Backend ra UI
+      handleRemoveCoupon();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRemoveCoupon = () => {
@@ -138,8 +144,9 @@ export default function CartAndCheckoutPage() {
         throw { type: "STOCK_ERROR", message: "⚠️ Lỗi tồn kho (Task 10.3): Sản phẩm hiện không đủ số lượng để khóa tồn kho." };
       }
 
-      // LUỒNG: Chỉ gọi API tạo đơn nếu chưa có ID đơn hàng
+// LUỒNG: Khởi tạo cờ nhận diện đơn mới
       let orderIdToPay = currentOrderId;
+      let isNewOrder = false; // Thêm cờ này để bắt bệnh
 
       if (!orderIdToPay) {
         const orderPayload = items.map((it) => ({
@@ -153,6 +160,7 @@ export default function CartAndCheckoutPage() {
           const newOrder = await createOrder(orderPayload, appliedPromo ? appliedPromo.code : undefined);
           orderIdToPay = newOrder.id;
           setCurrentOrderId(newOrder.id);
+          isNewOrder = true; // Đánh dấu đây là đơn vừa mới đẻ ra
         } catch (orderErr: any) {
           const msg = orderErr.message || "";
           if (msg.toLowerCase().includes("stock") || msg.toLowerCase().includes("kho")) {
@@ -162,12 +170,11 @@ export default function CartAndCheckoutPage() {
         }
       }
 
-      // THÊM ĐOẠN NÀY ĐỂ ÉP KIỂU STRICT CHO TYPESCRIPT
       if (!orderIdToPay) {
         throw { type: "GENERAL", message: "Không thể khởi tạo mã đơn hàng hợp lệ." };
       }
 
-      // Xử lý giả lập lỗi thanh toán (Task 8)
+      // 1. Xử lý giả lập lỗi thanh toán (Task 8)
       if (simulatePaymentError) {
         try {
           await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/orders/${orderIdToPay}/status`, {
@@ -175,23 +182,62 @@ export default function CartAndCheckoutPage() {
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ status: "PAYMENT_FAILED" }),
           });
-        } catch (e) {
-          console.warn("Không thể cập nhật trạng thái lỗi xuống DB", e);
-        }
+        } catch (e) {}
 
         throw {
           type: "PAYMENT_ERROR",
-          message: `❌ Thanh toán thất bại (Task 8): Cổng giao dịch ${paymentMethod} từ chối đơn hàng #${orderIdToPay} (Trạng thái đơn: PAYMENT_FAILED).`,
+          message: `❌ Thanh toán thất bại (Task 8): Cổng giao dịch ${paymentMethod} từ chối đơn hàng #${orderIdToPay}.`,
         };
       }
 
-      // Gọi API thanh toán thật (Task 8 & 10.2)
-      // Thêm dấu ! (orderIdToPay!) để khẳng định chắc chắn 100% không phải null
-      await processPayment(orderIdToPay!, paymentMethod);
+      // 2. Khôi phục trạng thái PENDING để giữ lại kho
+      // FIX LỖI: Chỉ gọi API khôi phục nếu ĐÂY LÀ ĐƠN CŨ THỬ LẠI (không phải đơn mới tạo)
+      if (orderIdToPay && !isNewOrder) {
+        const resetRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/orders/${orderIdToPay}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ status: "PENDING" }),
+        });
+        
+        if (!resetRes.ok) {
+           const errData = await resetRes.json();
+           throw { type: "STOCK_ERROR", message: errData.message || "Không thể giữ lại nguyên liệu để thanh toán. Kho có thể đã hết." };
+        }
+      }
+    // Nếu chọn VNPAY: Gọi API lấy link và chuyển hướng trình duyệt
+      if (paymentMethod === 'VNPAY') {
+        const vnpayRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/payments/vnpay/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'Idempotency-Key': crypto.randomUUID(), // THÊM DÒNG NÀY ĐỂ FIX LỖI
+          },
+          body: JSON.stringify({ orderId: orderIdToPay }),
+        });
 
-      // Thành công -> Chuyển hướng
-      handleClearAll();
-      router.push(`/order-confirmation?orderId=${orderIdToPay}&total=${finalTotal}`);
+        if (!vnpayRes.ok) {
+          const errData = await vnpayRes.json();
+          throw { type: 'PAYMENT_ERROR', message: errData.message || 'Không thể tạo cổng thanh toán VNPay' };
+        }
+
+        const data = await vnpayRes.json();
+        const paymentUrl = typeof data === 'string' ? data : (data.paymentUrl || data.url);
+
+        if (!paymentUrl) {
+          throw { type: 'PAYMENT_ERROR', message: 'Backend không trả về link thanh toán VNPay hợp lệ' };
+        }
+
+        // Chuyển hướng người dùng sang cổng thanh toán VNPay để hiển thị mã QR
+        window.location.href = paymentUrl;
+        return;
+      }
+
+      // Luồng cũ dành cho WALLET và CARD thông thường
+      await processPayment(orderIdToPay!, paymentMethod);
+      router.push(`/order-confirmation?orderId=${orderIdToPay}`);
+
+
     } catch (err: any) {
       if (err.type === "STOCK_ERROR") {
         setErrorType("STOCK_ERROR");
@@ -319,6 +365,7 @@ export default function CartAndCheckoutPage() {
               <div className="rounded-3xl border border-[#eee3d7] bg-white p-6 shadow-md">
                 <h2 className="text-lg font-black" style={{ fontFamily: "Georgia, serif" }}>Phương thức thanh toán</h2>
                 <div className="mt-4 space-y-3">
+                  {/* ===== WALLET ===== */}
                   <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition ${paymentMethod === "WALLET" ? "border-[#a16b4b] bg-[#faf7f2]" : "border-[#e5d8ca]"}`}>
                     <div className="flex items-center gap-3">
                       <input type="radio" name="payment" value="WALLET" checked={paymentMethod === "WALLET"} onChange={() => setPaymentMethod("WALLET")} className="accent-[#a16b4b]" />
@@ -329,6 +376,8 @@ export default function CartAndCheckoutPage() {
                     </div>
                     <span className="text-xl">💳</span>
                   </label>
+
+                  {/* ===== CARD ===== */}
                   <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition ${paymentMethod === "CARD" ? "border-[#a16b4b] bg-[#faf7f2]" : "border-[#e5d8ca]"}`}>
                     <div className="flex items-center gap-3">
                       <input type="radio" name="payment" value="CARD" checked={paymentMethod === "CARD"} onChange={() => setPaymentMethod("CARD")} className="accent-[#a16b4b]" />
@@ -338,6 +387,30 @@ export default function CartAndCheckoutPage() {
                       </div>
                     </div>
                     <span className="text-xl">🏦</span>
+                  </label>
+
+                  {/* ===== VNPAY (DÁN ĐOẠN NÀY VÀO ĐÂY) ===== */}
+                  <label className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition ${paymentMethod === "VNPAY" ? "border-blue-500 bg-blue-50" : "border-[#e5d8ca]"}`}>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="radio" 
+                        name="payment" 
+                        value="VNPAY" 
+                        checked={paymentMethod === "VNPAY"} 
+                        onChange={() => setPaymentMethod("VNPAY")} 
+                        className="accent-blue-600" 
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                          CỔNG VNPAY
+                          <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded font-bold uppercase">
+                            QR / ATM
+                          </span>
+                        </p>
+                        <p className="text-xs text-blue-700">Quét mã QR qua App hoặc thẻ nội địa</p>
+                      </div>
+                    </div>
+                    <span className="text-xl">🇻🇳</span>
                   </label>
                 </div>
 

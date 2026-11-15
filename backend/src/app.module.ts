@@ -9,15 +9,20 @@ import { ProductsModule } from './products/products.module';
 import { PaymentsModule } from './payments/payments.module';
 
 import { OrdersModule } from './orders/orders.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { PromotionsModule } from './promotions/promotions.module';
+
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
     ProductsModule,
     OrdersModule,
     PaymentsModule,
+    PromotionsModule,
 
   ],
   controllers: [AppController],
